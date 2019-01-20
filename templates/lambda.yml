@@ -1,0 +1,256 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  ApiGatewayEndpoint:
+    Type: 'String'
+    Description: |
+      Endpoint of API Gateway.
+
+Resources:
+  ######################
+  ### DynamoDB Table ###
+  ######################
+  Table:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      KeySchema:
+        - KeyType: 'HASH'
+          AttributeName: 'ConnectionId'
+      AttributeDefinitions:
+        - AttributeType: 'S'
+          AttributeName: 'ConnectionId'
+      BillingMode: 'PAY_PER_REQUEST'
+      StreamSpecification:
+        StreamViewType: 'NEW_AND_OLD_IMAGES'
+
+  #####################
+  ### Lambda layers ###
+  #####################
+  BaseLayer:
+    Type: 'AWS::Lambda::LayerVersion'
+    Properties:
+      CompatibleRuntimes:
+        - 'nodejs8.10'
+      Content: '../base-layer'
+      Description: !Sub 'Base layer for Lambda functions in CloudFormation Stack - ${AWS::StackName}'
+
+  ######################################################
+  ### Lambda function for DynamoDB Streams triggers. ###
+  ######################################################
+  TableTriggersRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'DynamoDBStream'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Effect: 'Allow'
+              Action:
+                - 'dynamodb:DescribeStream'
+                - 'dynamodb:GetRecords'
+                - 'dynamodb:GetShardIterator'
+                - 'dynamodb:ListStreams'
+              Resource: !GetAtt 'Table.StreamArn'
+        - PolicyName: 'NotifyConnectedClients'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:Scan'
+                Resource: !GetAtt 'Table.Arn'
+              - Effect: 'Allow'
+                Action: 'execute-api:ManageConnections'
+                Resource: 'arn:aws:execute-api:*:*:*/@connections/*'
+        - PolicyName: 'PruneStaleClients'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:BatchWriteItem'
+                Resource: !GetAtt 'Table.Arn'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Path: '/service-role/'
+  TableTriggers:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code: '../ddb-update'
+      Description: !Sub 'Function to be executed on DynamoDB Streams Triggers - ${AWS::StackName}'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref 'Table'
+          API_ENDPOINT: !Ref 'ApiGatewayEndpoint'
+      Handler: 'index.handler'
+      Layers:
+        - !Ref 'BaseLayer'
+      Role: !GetAtt 'TableTriggersRole.Arn'
+      Runtime: 'nodejs8.10'
+  TableTriggersEventSource:
+    Type: 'AWS::Lambda::EventSourceMapping'
+    Properties:
+      EventSourceArn: !GetAtt 'Table.StreamArn'
+      FunctionName: !GetAtt 'TableTriggers.Arn'
+      StartingPosition: 'TRIM_HORIZON'
+
+  #############################################
+  ### Lambda function for `$connect` route. ###
+  #############################################
+  OnConnectRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'SaveNewClient'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:PutItem'
+                Resource: !GetAtt 'Table.Arn'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Path: '/service-role/'
+  OnConnect:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code: '../on-connect'
+      Description: !Sub 'Function to be executed when a new client opens connection - ${AWS::StackName}'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref 'Table'
+      Handler: 'index.handler'
+      Role: !GetAtt 'OnConnectRole.Arn'
+      Runtime: 'nodejs8.10'
+
+  ################################################
+  ### Lambda function for `$disconnect` route. ###
+  ################################################
+  OnDisconnectRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'DeleteClient'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:DeleteItem'
+                Resource: !GetAtt 'Table.Arn'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Path: '/service-role/'
+  OnDisconnect:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code: '../on-disconnect'
+      Description: !Sub 'Function to be executed when a client closes connection - ${AWS::StackName}'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref 'Table'
+      Handler: 'index.handler'
+      Role: !GetAtt 'OnDisconnectRole.Arn'
+      Runtime: 'nodejs8.10'
+
+  #########################################
+  ### Lambda function for `list` route. ###
+  #########################################
+  OnListRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'ListConnectedClients'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:Scan'
+                Resource: !GetAtt 'Table.Arn'
+              - Effect: 'Allow'
+                Action: 'execute-api:ManageConnections'
+                Resource: 'arn:aws:execute-api:*:*:*/@connections/*'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Path: '/service-role/'
+  OnList:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code: '../on-list'
+      Description: !Sub 'Function to be executed when a client asks list of connected clients - ${AWS::StackName}'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref 'Table'
+      Handler: 'index.handler'
+      Layers:
+        - !Ref 'BaseLayer'
+      Role: !GetAtt 'OnListRole.Arn'
+      Runtime: 'nodejs8.10'
+
+  #########################################
+  ### Lambda function for `move` route. ###
+  #########################################
+  OnMoveRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'UpdateClientInfo'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action: 'dynamodb:UpdateItem'
+                Resource: !GetAtt 'Table.Arn'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Path: '/service-role/'
+  OnMove:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code: '../on-move'
+      Description: !Sub 'Function to be executed when a client updates mouse position - ${AWS::StackName}'
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref 'Table'
+      Handler: 'index.handler'
+      Role: !GetAtt 'OnMoveRole.Arn'
+      Runtime: 'nodejs8.10'

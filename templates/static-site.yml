@@ -1,0 +1,105 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  AcmCertificate:
+    Type: 'String'
+    Description: |
+      ARN of ACM certificate to serve distribution contents via HTTPS.
+  HostedZone:
+    Type: 'AWS::Route53::HostedZone::Id'
+    Description: |
+      Route53 Hosted Zone where ALIAS records should be created.
+  Hostname:
+    Type: 'String'
+    Description: |
+      Hostname of static site. S3 bucket will be named the same way.
+  DefaultRootObject:
+    Type: 'String'
+    Description: |
+      Default root object to be served in place of `/`.
+    Default: 'index.html'
+
+Resources:
+  ##############################
+  ### Origin Access Identity ###
+  ##############################
+  OriginAccessIdentity:
+    Type: 'AWS::CloudFront::CloudFrontOriginAccessIdentity'
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'Origin Access Identity for ${AWS::StackName}'
+
+  ################################
+  ### S3 Bucket, Bucket policy ###
+  ################################
+  Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref 'Hostname'
+  BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref 'Bucket'
+      PolicyDocument:
+        Statement:
+          - Principal:
+              CanonicalUser: !GetAtt 'OriginAccessIdentity.S3CanonicalUserId'
+            Action: 's3:GetObject'
+            Effect: 'Allow'
+            Resource: !Sub '${Bucket.Arn}/*'
+
+  ###############################
+  ### CloudFront distribution ###
+  ###############################
+  Distribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Ref 'Hostname'
+        Comment: !Sub 'Distribution for ${Hostname} created for ${AWS::StackName}.'
+        DefaultCacheBehavior:
+          Compress: yes
+          ForwardedValues:
+            QueryString: no
+          TargetOriginId: 'default'
+          ViewerProtocolPolicy: 'redirect-to-https'
+        DefaultRootObject: !Ref 'DefaultRootObject'
+        Enabled: yes
+        HttpVersion: 'http2'
+        IPV6Enabled: yes
+        Origins:
+          - Id: 'default'
+            DomainName: !GetAtt 'Bucket.DomainName'
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OriginAccessIdentity}'
+        PriceClass: 'PriceClass_100'
+        ViewerCertificate:
+          AcmCertificateArn: !Ref 'AcmCertificate'
+          MinimumProtocolVersion: 'TLSv1.1_2016'
+          SslSupportMethod: 'sni-only'
+
+  #######################
+  ### Route53 records ###
+  #######################
+  ARecord:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt 'Distribution.DomainName'
+        HostedZoneId: 'Z2FDTNDATAQYW2' # https://docs.aws.amazon.com/en_us/general/latest/gr/rande.html#cf_region
+      Comment: !Sub 'A record for ${AWS::StackName}.'
+      HostedZoneId: !Ref 'HostedZone'
+      Name: !Sub '${Hostname}.'
+      Type: 'A'
+  AAAARecord:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt 'Distribution.DomainName'
+        HostedZoneId: 'Z2FDTNDATAQYW2' # https://docs.aws.amazon.com/en_us/general/latest/gr/rande.html#cf_region
+      Comment: !Sub 'AAAA record for ${AWS::StackName}.'
+      HostedZoneId: !Ref 'HostedZone'
+      Name: !Sub '${Hostname}.'
+      Type: 'AAAA'
