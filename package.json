@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "build": "babel public/index.js --out-file public/bundle.js"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.2.3",
+    "@babel/core": "^7.2.2",
+    "@babel/preset-env": "^7.3.1"
+  }
+}

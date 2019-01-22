@@ -1,2 +1,4 @@
-template.yml
-public/info.json
+/node_modules
+/public/bundle.js
+/public/info.json
+/template.yml

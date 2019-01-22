@@ -25,6 +25,10 @@ package: clean
 		--s3-bucket $(PACKAGE_BUCKET) \
 		--s3-prefix $(shell basename $$(pwd))
 
-deploy:
+build:
+	yarn install
+	yarn run build
+
+deploy: build
 	aws s3 sync public s3://$(SITE_HOSTNAME) --delete
 	aws cloudfront create-invalidation --paths '/*' --distribution-id $(DISTRIBUTION_ID)
