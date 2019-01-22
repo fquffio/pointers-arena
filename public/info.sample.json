@@ -1,0 +1,3 @@
+{
+  "ws": "wss://<API-ID>.execute-api.<REGION>.amazonaws.com/<STAGE>"
+}
