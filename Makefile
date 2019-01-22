@@ -10,7 +10,7 @@ PACKAGE_BUCKET ?= fquffio-sources
 SITE_HOSTNAME ?= pointers-arena.accrocch.io
 DISTRIBUTION_ID := $(shell aws cloudfront list-distributions --query "DistributionList.Items[?contains(Aliases.Items, '$(SITE_HOSTNAME)')].Id" --output text)
 
-FUNCTIONS := ddb-update on-connect on-disconnect on-list on-move
+FUNCTIONS := on-connect on-disconnect on-list on-move table-triggers
 
 install:
 	$(foreach dir, $(FUNCTIONS), yarn --cwd $(dir) install;)

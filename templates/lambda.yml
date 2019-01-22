@@ -88,7 +88,7 @@ Resources:
   TableTriggers:
     Type: 'AWS::Lambda::Function'
     Properties:
-      Code: '../ddb-update'
+      Code: '../table-triggers'
       Description: !Sub 'Function to be executed on DynamoDB Streams Triggers - ${AWS::StackName}'
       Environment:
         Variables:
