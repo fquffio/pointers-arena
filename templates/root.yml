@@ -14,10 +14,14 @@ Parameters:
     Type: 'String'
     Description: |
       Hostname under which static site will be served.
-  ApiGatewayEndpoint:
+  ApiGatewayId:
     Type: 'String'
     Description: |
-      Endpoint of API Gateway.
+      ID of API Gateway.
+  ApiGatewayStage:
+    Type: 'String'
+    Description: |
+      Deployment stage of API Gateway.
 
 Resources:
   StaticSite:
@@ -34,4 +38,5 @@ Resources:
     Properties:
       TemplateURL: 'lambda.yml'
       Parameters:
-        ApiGatewayEndpoint: !Ref 'ApiGatewayEndpoint'
+        ApiGatewayId: !Ref 'ApiGatewayId'
+        ApiGatewayStage: !Ref 'ApiGatewayStage'

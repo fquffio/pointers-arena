@@ -2,10 +2,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Parameters:
-  ApiGatewayEndpoint:
+  ApiGatewayId:
     Type: 'String'
     Description: |
-      Endpoint of API Gateway.
+      ID of API Gateway.
+  ApiGatewayStage:
+    Type: 'String'
+    Description: |
+      Deployment stage of API Gateway.
 
 Resources:
   ######################
@@ -70,7 +74,7 @@ Resources:
                 Resource: !GetAtt 'Table.Arn'
               - Effect: 'Allow'
                 Action: 'execute-api:ManageConnections'
-                Resource: 'arn:aws:execute-api:*:*:*/@connections/*'
+                Resource: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayId}/${ApiGatewayStage}/POST/@connections/*'
         - PolicyName: 'PruneStaleClients'
           PolicyDocument:
             Version: '2012-10-17'
@@ -89,7 +93,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref 'Table'
-          API_ENDPOINT: !Ref 'ApiGatewayEndpoint'
+          API_ENDPOINT: !Sub 'https://${ApiGatewayId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiGatewayStage}'
       Handler: 'index.handler'
       Layers:
         - !Ref 'BaseLayer'
