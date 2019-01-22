@@ -27,7 +27,7 @@ exports.handler = async (event) => {
         return { id, clientName, clientColor };
       }
 
-      if (!record.dynamodb.NewImage.ClientName || !record.dynamodb.OldImage.ClientColor) {
+      if (!record.dynamodb.OldImage.ClientName || !record.dynamodb.OldImage.ClientColor) {
         // Unexpected data.
         return null;
       }
@@ -41,8 +41,6 @@ exports.handler = async (event) => {
 
       // Client info updated.
       if (record.dynamodb.NewImage.ClientX && record.dynamodb.NewImage.ClientY) {
-        console.log(`New data: ${JSON.stringify(record.dynamodb.NewImage)}`);
-
         const clientX = parseFloat(record.dynamodb.NewImage.ClientX.N);
         const clientY = parseFloat(record.dynamodb.NewImage.ClientY.N);
 
