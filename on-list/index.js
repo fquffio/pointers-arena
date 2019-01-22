@@ -1,30 +1,23 @@
 const AWS = require('aws-sdk');
 const DDB = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-10-08' });
 
-require('aws-apigatewaymanagement-client/clients/apigatewaymanagementapi'); // Add client to namespace.
-
 exports.handler = async (event) => {
   try {
     // List connected clients position set.
     const result = await DDB.scan({
       TableName: process.env.TABLE_NAME,
-      FilterExpression: 'attribute_exists(ClientX) and attribute_exists(ClientY) and ConnectionId <> :connectionId',
+      FilterExpression: '(attribute_exists(ClientX) and attribute_exists(ClientY)) or ConnectionId = :connectionId',
       ExpressionAttributeValues: {
         ':connectionId': event.requestContext.connectionId,
       },
     }).promise();
 
-    const data = result.Items.map(({ ClientName, ClientX, ClientY }) => ({ clientName: ClientName, clientX: ClientX, clientY: ClientY }));
-    const APIGW = new AWS.ApiGatewayManagementApi({
-      apiVersion: '2018-11-29',
-      endpoint: `${event.requestContext.domainName}/${event.requestContext.stage}`,
-    });
+    const data = result.Items.map(({ ConnectionId, ClientName, ClientColor, ClientX, ClientY }) => ({ clientName: ClientName, clientColor: ClientColor, clientX: ClientX, clientY: ClientY, me: ConnectionId === event.requestContext.connectionId }));
 
-    // Send data to current client.
-    await APIGW.postToConnection({
-      ConnectionId: event.requestContext.connectionId,
-      Data: JSON.stringify(data),
-    }).promise();
+    return {
+      statusCode: 200,
+      body: JSON.stringify(data),
+    }
   } catch (error) {
     console.error(`Unable to list connected clients: ${error}`);
 
@@ -33,9 +26,4 @@ exports.handler = async (event) => {
       body: JSON.stringify({ ok: false, error }),
     };
   }
-
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ ok: true }),
-  };
 };

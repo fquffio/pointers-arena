@@ -198,9 +198,6 @@ Resources:
               - Effect: 'Allow'
                 Action: 'dynamodb:Scan'
                 Resource: !GetAtt 'Table.Arn'
-              - Effect: 'Allow'
-                Action: 'execute-api:ManageConnections'
-                Resource: 'arn:aws:execute-api:*:*:*/@connections/*'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
       Path: '/service-role/'
@@ -213,8 +210,6 @@ Resources:
         Variables:
           TABLE_NAME: !Ref 'Table'
       Handler: 'index.handler'
-      Layers:
-        - !Ref 'BaseLayer'
       Role: !GetAtt 'OnListRole.Arn'
       Runtime: 'nodejs8.10'
 

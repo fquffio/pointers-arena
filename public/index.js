@@ -1,6 +1,7 @@
 class Pointer {
-  constructor(name, arena) {
+  constructor(name, color, arena) {
     this.name = name;
+    this.color = color;
     this.createElement(arena);
   }
 
@@ -8,7 +9,7 @@ class Pointer {
     this.element = document.createElement('div');
     this.element.classList.add('pointer');
     this.element.style.display = 'none';
-    this.element.style.backgroundColor = `hsl(${360 * Math.random()}, ${25 + 70 * Math.random()}%, ${85 + 10 * Math.random()}%)`;
+    this.element.style.backgroundColor = this.color;
 
     parent.appendChild(this.element);
 
@@ -29,12 +30,21 @@ class Pointers {
   constructor(arena) {
     this.arena = arena;
     this.pointers = [];
+    this.me = null;
   }
 
   getMatchingPointer(event) {
+    if (event.me) {
+      if (!this.me) {
+        this.me = new Pointer(`me (${event.clientName}`, event.clientColor, this.arena);
+      }
+
+      return this.me;
+    }
+
     let found = this.pointers.find((pointer) => pointer.name === event.clientName);
     if (!found) {
-      found = new Pointer(event.clientName, this.arena);
+      found = new Pointer(event.clientName, event.clientColor, this.arena);
       this.pointers.push(found);
     }
 
@@ -58,10 +68,11 @@ class Pointers {
   }
 }
 
+// Setup arena.
 const arena = document.getElementById('arena');
 const pointers = new Pointers(arena);
-const myPointer = new Pointer('me', arena);
 
+// Log in bottom drawer.
 const messages = document.getElementById('messages');
 function log(message) {
   const log = document.createElement('li');
@@ -75,9 +86,6 @@ fetch('info.json')
   .then((res) => res.json())
   .then((info) => {
     const ws = new WebSocket(info.ws);
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ action: 'list' }));
-    };
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       data.forEach((ev) => pointers.handleEvent(ev));
@@ -89,21 +97,32 @@ fetch('info.json')
         return;
       }
 
-      myPointer.moveAt(event.offsetX, event.offsetY);
+      if (pointers.me) {
+        // Move my pointer.
+        pointers.me.moveAt(event.offsetX, event.offsetY);
+      }
       position = { x: event.offsetX / arena.offsetWidth, y: event.offsetY / arena.offsetHeight };
     });
 
-    let lastSentPosition = null;
-    window.setInterval(() => {
-      if (position === null && lastSentPosition === null) {
-        return;
-      }
-      if (lastSentPosition !== null && position.x === lastSentPosition.x && position.y === lastSentPosition.y) {
-        return;
-      }
+    ws.onopen = () => {
+      // Request list of pointers in arena.
+      ws.send(JSON.stringify({ action: 'list' }));
 
-      lastSentPosition = position;
-      log(`Sent new position: ${JSON.stringify(position)}`);
-      ws.send(JSON.stringify({ action: 'move', clientX: position.x, clientY: position.y }));
-    }, 500);
+      // Setup interval to send update pointer position at most twice per second.
+      let lastSentPosition = null;
+      window.setInterval(() => {
+        if (position === null && lastSentPosition === null) {
+          // Never entered.
+          return;
+        }
+        if (lastSentPosition !== null && position.x === lastSentPosition.x && position.y === lastSentPosition.y) {
+          // Position unchanged.
+          return;
+        }
+
+        lastSentPosition = position;
+        log(`Sent new position: ${JSON.stringify(position)}`);
+        ws.send(JSON.stringify({ action: 'move', clientX: position.x, clientY: position.y }));
+      }, 500);
+    };
   });

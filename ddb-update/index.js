@@ -16,14 +16,16 @@ exports.handler = async (event) => {
     if (record.eventName === 'INSERT') {
       // Client connected.
       const clientName = record.dynamodb.NewImage.ClientName.S;
+      const clientColor = record.dynamodb.NewImage.ClientColor.S;
 
-      return { id, clientName };
+      return { id, clientName, clientColor };
     }
 
     const clientName = record.dynamodb.OldImage.ClientName.S;
+    const clientColor = record.dynamodb.OldImage.ClientColor.S;
     if (record.eventName === 'REMOVE') {
       // Client disconnected.
-      return { id, clientName, disconnected: true };
+      return { id, clientName, clientColor, disconnected: true };
     }
 
     // Client info updated.
@@ -33,10 +35,10 @@ exports.handler = async (event) => {
       const clientX = parseFloat(record.dynamodb.NewImage.ClientX.N);
       const clientY = parseFloat(record.dynamodb.NewImage.ClientY.N);
 
-      return { id, clientName, clientX, clientY };
+      return { id, clientName, clientColor, clientX, clientY };
     }
 
-    return { id, clientName };
+    return { id, clientName, clientColor };
   });
   console.log(`Sending notification to all connected clients: ${JSON.stringify(data)}`);
 
@@ -56,6 +58,11 @@ exports.handler = async (event) => {
 
             return datum;
           });
+
+        if (clientData.length === 0) {
+          // No data to send.
+          return { ConnectionId, connected: null };
+        }
 
         await APIGW.postToConnection({
           ConnectionId,
