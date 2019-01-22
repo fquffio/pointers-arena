@@ -36,7 +36,7 @@ class Pointers {
   getMatchingPointer(event) {
     if (event.me) {
       if (!this.me) {
-        this.me = new Pointer(`me (${event.clientName}`, event.clientColor, this.arena);
+        this.me = new Pointer(`me (${event.clientName})`, event.clientColor, this.arena);
       }
 
       return this.me;
