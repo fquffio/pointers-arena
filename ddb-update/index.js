@@ -10,36 +10,48 @@ const APIGW = new AWS.ApiGatewayManagementApi({
 
 exports.handler = async (event) => {
   // Prepare data to be sent to connected clients.
-  const data = event.Records.map((record) => {
-    const id = record.dynamodb.Keys.ConnectionId.S;
+  const data = event.Records
+    .map((record) => {
+      const id = record.dynamodb.Keys.ConnectionId.S;
 
-    if (record.eventName === 'INSERT') {
-      // Client connected.
-      const clientName = record.dynamodb.NewImage.ClientName.S;
-      const clientColor = record.dynamodb.NewImage.ClientColor.S;
+      if (record.eventName === 'INSERT') {
+        if (!record.dynamodb.NewImage.ClientName || !record.dynamodb.NewImage.ClientColor) {
+          // Unexpected data.
+          return null;
+        }
+
+        // Client connected.
+        const clientName = record.dynamodb.NewImage.ClientName.S;
+        const clientColor = record.dynamodb.NewImage.ClientColor.S;
+
+        return { id, clientName, clientColor };
+      }
+
+      if (!record.dynamodb.NewImage.ClientName || !record.dynamodb.OldImage.ClientColor) {
+        // Unexpected data.
+        return null;
+      }
+
+      const clientName = record.dynamodb.OldImage.ClientName.S;
+      const clientColor = record.dynamodb.OldImage.ClientColor.S;
+      if (record.eventName === 'REMOVE') {
+        // Client disconnected.
+        return { id, clientName, clientColor, disconnected: true };
+      }
+
+      // Client info updated.
+      if (record.dynamodb.NewImage.ClientX && record.dynamodb.NewImage.ClientY) {
+        console.log(`New data: ${JSON.stringify(record.dynamodb.NewImage)}`);
+
+        const clientX = parseFloat(record.dynamodb.NewImage.ClientX.N);
+        const clientY = parseFloat(record.dynamodb.NewImage.ClientY.N);
+
+        return { id, clientName, clientColor, clientX, clientY };
+      }
 
       return { id, clientName, clientColor };
-    }
-
-    const clientName = record.dynamodb.OldImage.ClientName.S;
-    const clientColor = record.dynamodb.OldImage.ClientColor.S;
-    if (record.eventName === 'REMOVE') {
-      // Client disconnected.
-      return { id, clientName, clientColor, disconnected: true };
-    }
-
-    // Client info updated.
-    if (record.dynamodb.NewImage.ClientX && record.dynamodb.NewImage.ClientY) {
-      console.log(`New data: ${JSON.stringify(record.dynamodb.NewImage)}`);
-
-      const clientX = parseFloat(record.dynamodb.NewImage.ClientX.N);
-      const clientY = parseFloat(record.dynamodb.NewImage.ClientY.N);
-
-      return { id, clientName, clientColor, clientX, clientY };
-    }
-
-    return { id, clientName, clientColor };
-  });
+    })
+    .filter((item) => item !== null);
   console.log(`Sending notification to all connected clients: ${JSON.stringify(data)}`);
 
   // Get list of connected clients.
