@@ -2,6 +2,9 @@
   "scripts": {
     "build": "babel public/index.js --out-file public/bundle.js"
   },
+  "dependencies": {
+    "aws-sdk": "^2.421.0"
+  },
   "devDependencies": {
     "@babel/cli": "^7.2.3",
     "@babel/core": "^7.2.2",

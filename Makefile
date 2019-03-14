@@ -1,4 +1,4 @@
-ALL: package install
+ALL: package
 .PHONY: prepare-stack deploy-stack deploy-site
 
 AWS_PROFILE ?= default
@@ -12,13 +12,7 @@ DISTRIBUTION_ID := $(shell aws cloudfront list-distributions --query "Distributi
 
 FUNCTIONS := on-connect on-disconnect on-list on-move table-triggers
 
-install:
-	$(foreach dir, $(FUNCTIONS), yarn --cwd $(dir) install;)
-
-clean:
-	$(foreach dir, $(FUNCTIONS), rm -rf $(dir)/node_modules;)
-
-package: clean
+package:
 	aws cloudformation package \
 		--template-file templates/root.yml \
 		--output-template-file $(PACKAGE_TEMPLATE) \
