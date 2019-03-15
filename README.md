@@ -20,40 +20,27 @@ Getting started
       - a Route53 Hosted Zone (e.g. `example.com.`)
       - a valid ACM certificate for `*.example.com`
 
-1. **Create WebSocket API**
+    Before you begin, change relevant variables in `Makefile`
+    (`AWS_PROFILE`, `AWS_DEFAULT_REGION`, `PACKAGE_BUCKET`, `SITE_HOSTNAME` namely)
+    or remember to _always_ pass these values when invoking `make` from the command line.
 
-    Log in into AWS Console, navigate to API Gateway console and create a new
-    WebSocket API. Specify `$request.body.action` as route selection expression.
-
-    You will set up routes later, once Lambda functions are ready.
-
-2. **Update config**
-
-    Copy `public/info.sample.json` in `public/info.json` and update the WebSocket URL.
-
-    Change relevant variables in `Makefile` (`AWS_PROFILE`, `AWS_DEFAULT_REGION`,
-    `PACKAGE_BUCKET`, `SITE_HOSTNAME` namely) or remember to _always_ pass these
-    values when invoking `make` from the command line.
-
-3. **Deploy CloudFormation Stack**
+1. **Deploy CloudFormation Stack**
 
     Run `make` to package the CloudFormation template, then deploy a new Stack from
     the console using the generated `template.yml`. Wait until all resources are
     ready (might take a while).
 
-4. **Configure and deploy WebSocket API**
+2. **Deploy WebSocket API**
 
-    Set up routes for your WebSocket API in the Amazon API Gateway console:
+    Create a new deployment stage by deploying your WebSocket API from the
+    Amazon API Gateway console. The stage name **MUST** match the one you specified
+    in your CloudFormation Stack.
 
-      - `$connect` should point to the created `OnConnect` Lambda function.
-      - `$disconnect` should point to the created `OnDisconnect` Lambda function.
-      - `list` should point to the created `OnList` Lambda function.
-        **Set up integration response for this route!**
-      - `move` should point to the created `OnMove` Lambda function.
+3. **Update config**
 
-    Create a new deployment for your API.
+    Copy `public/info.sample.json` in `public/info.json` and update the WebSocket URL.
 
-5. **Deploy HTML+JS application**
+4. **Deploy HTML+JS application**
 
     Run `make deploy` to build and deploy client application.
 
