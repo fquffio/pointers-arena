@@ -14,16 +14,51 @@ Parameters:
     Type: 'String'
     Description: |
       Hostname under which static site will be served.
-  ApiGatewayId:
-    Type: 'String'
-    Description: |
-      ID of API Gateway.
   ApiGatewayStage:
     Type: 'String'
     Description: |
       Deployment stage of API Gateway.
 
+Outputs:
+  WebSocketUrl:
+    Description: |
+      URL of WebSocket API.
+    Value: !Sub 'wss://${Api}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStage}'
+
 Resources:
+  Api:
+    Type: 'AWS::ApiGatewayV2::Api'
+    Properties:
+      Name: !Ref 'AWS::StackName'
+      Description: 'Pointers Arena WebSocket API.'
+      ProtocolType: 'WEBSOCKET'
+      RouteSelectionExpression: '$request.body.action'
+  ApiStage:
+    Type: 'AWS::ApiGatewayV2::Stage'
+    DependsOn: 'Routes'
+    Properties:
+      ApiId: !Ref 'Api'
+      StageName: !Ref 'ApiGatewayStage'
+
+  Lambda:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'lambda.yml'
+      Parameters:
+        ApiGatewayId: !Ref 'Api'
+        ApiGatewayStage: !Ref 'ApiGatewayStage'
+
+  Routes:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'routes.yml'
+      Parameters:
+        ApiGatewayId: !Ref 'Api'
+        OnConnectArn: !GetAtt 'Lambda.Outputs.OnConnectArn'
+        OnDisconnectArn: !GetAtt 'Lambda.Outputs.OnDisconnectArn'
+        OnListArn: !GetAtt 'Lambda.Outputs.OnListArn'
+        OnMoveArn: !GetAtt 'Lambda.Outputs.OnMoveArn'
+
   StaticSite:
     Type: 'AWS::CloudFormation::Stack'
     Properties:
@@ -32,11 +67,3 @@ Resources:
         AcmCertificate: !Ref 'AcmCertificate'
         HostedZone: !Ref 'HostedZone'
         Hostname: !Ref 'SiteHostname'
-
-  Lambda:
-    Type: 'AWS::CloudFormation::Stack'
-    Properties:
-      TemplateURL: 'lambda.yml'
-      Parameters:
-        ApiGatewayId: !Ref 'ApiGatewayId'
-        ApiGatewayStage: !Ref 'ApiGatewayStage'

@@ -1,0 +1,142 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  ApiGatewayId:
+    Type: 'String'
+    Description: |
+      ID of API Gateway.
+  OnConnectArn:
+    Type: 'String'
+    Description: |
+      ARN of Lambda function to be executed when a new client opens connection.
+  OnDisconnectArn:
+    Type: 'String'
+    Description: |
+      ARN of Lambda function to be executed when a client closes connection.
+  OnListArn:
+    Type: 'String'
+    Description: |
+      ARN of Lambda function to be executed when a client asks list of connected clients.
+  OnMoveArn:
+    Type: 'String'
+    Description: |
+      ARN of Lambda function to be executed when a client updates mouse position.
+
+Resources:
+  ########################
+  ### `$connect` route ###
+  ########################
+  OnConnectIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      IntegrationType: 'AWS_PROXY'
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnConnectArn}/invocations'
+  OnConnectRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      RouteKey: '$connect'
+      Target: !Sub 'integrations/${OnConnectIntegration}'
+
+  ###########################
+  ### `$disconnect` route ###
+  ###########################
+  OnDisconnectIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      IntegrationType: 'AWS_PROXY'
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnDisconnectArn}/invocations'
+  OnDisconnectRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      RouteKey: '$disconnect'
+      Target: !Sub 'integrations/${OnDisconnectIntegration}'
+
+  ####################
+  ### `list` route ###
+  ####################
+  OnListModel:
+    Type: 'AWS::ApiGatewayV2::Model'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      Name: 'list'
+      Description: 'Frame to request list of all known pointers.'
+      ContentType: 'application/json'
+      Schema:
+        type: 'object'
+        properties:
+          action:
+            type: 'string'
+            enum: ['list']
+        required: ['action']
+        # additionalProperties: no
+  OnListIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      IntegrationType: 'AWS_PROXY'
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnListArn}/invocations'
+  OnListRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn: 'OnListModel'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      RouteKey: 'list'
+      Target: !Sub 'integrations/${OnListIntegration}'
+      ModelSelectionExpression: 'list'
+      RequestModels:
+        list: 'list'
+      RouteResponseSelectionExpression: '$default'
+  OnListRouteResponse:
+    Type: 'AWS::ApiGatewayV2::RouteResponse'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      RouteId: !Ref 'OnListRoute'
+      RouteResponseKey: '$default'
+
+  ####################
+  ### `move` route ###
+  ####################
+  OnMoveModel:
+    Type: 'AWS::ApiGatewayV2::Model'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      Name: 'move'
+      Description: 'Frame describing new pointer position.'
+      ContentType: 'application/json'
+      Schema:
+        type: 'object'
+        properties:
+          action:
+            type: 'string'
+            enum: ['move']
+          clientX:
+            type: 'number'
+            # minimum: 0
+            # maximum: 1
+          clientY:
+            type: 'number'
+            # minimum: 0
+            # maximum: 1
+        required: ['action', 'clientX', 'clientY']
+        # additionalProperties: no
+  OnMoveIntegration:
+    Type: 'AWS::ApiGatewayV2::Integration'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      IntegrationType: 'AWS_PROXY'
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${OnMoveArn}/invocations'
+  OnMoveRoute:
+    Type: 'AWS::ApiGatewayV2::Route'
+    DependsOn: 'OnMoveModel'
+    Properties:
+      ApiId: !Ref 'ApiGatewayId'
+      RouteKey: 'move'
+      Target: !Sub 'integrations/${OnMoveIntegration}'
+      ModelSelectionExpression: 'move'
+      RequestModels:
+        move: 'move'

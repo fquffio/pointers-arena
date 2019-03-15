@@ -11,6 +11,24 @@ Parameters:
     Description: |
       Deployment stage of API Gateway.
 
+Outputs:
+  OnConnectArn:
+    Description: |
+      ARN of Lambda function to be executed when a new client opens connection.
+    Value: !GetAtt 'OnConnect.Arn'
+  OnDisconnectArn:
+    Description: |
+      ARN of Lambda function to be executed when a client closes connection.
+    Value: !GetAtt 'OnDisconnect.Arn'
+  OnListArn:
+    Description: |
+      ARN of Lambda function to be executed when a client asks list of connected clients.
+    Value: !GetAtt 'OnList.Arn'
+  OnMoveArn:
+    Description: |
+      ARN of Lambda function to be executed when a client updates mouse position.
+    Value: !GetAtt 'OnMove.Arn'
+
 Resources:
   ######################
   ### DynamoDB Table ###
